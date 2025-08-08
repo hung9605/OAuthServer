@@ -58,7 +58,7 @@ public class AuthorizationServerConfig {
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
         return AuthorizationServerSettings.builder()
-                .issuer("http://localhost:9005") // Issuer của Authorization Server
+                .issuer("https://oauthserver-h2s5.onrender.com") // Issuer của Authorization Server
                 .build();
     }
 
