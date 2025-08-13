@@ -5,10 +5,12 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -29,6 +31,7 @@ import org.springframework.security.oauth2.server.authorization.settings.Authori
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.session.data.redis.RedisIndexedSessionRepository;
 
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.RSAKey;
@@ -44,6 +47,9 @@ public class AuthorizationServerConfig {
 	@Value("${redirect.uri}")
 	private String redirectUri;
 	
+	@Autowired
+	private RedisIndexedSessionRepository sessionRepository;
+	
 
     @Bean
     public RegisteredClientRepository registeredClientRepository() {
@@ -58,6 +64,7 @@ public class AuthorizationServerConfig {
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri(redirectUri)
+                .postLogoutRedirectUri("http://localhost:4200")
                 //.redirectUri("https://oauth.pstmn.io/v1/callback")
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
@@ -68,50 +75,56 @@ public class AuthorizationServerConfig {
                 return new InMemoryRegisteredClientRepository(registeredClient);
     }
     
-    @Bean("authServerFilterChain")
-    @Order(1)
-    public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
-        OAuth2AuthorizationServerConfiguration.applyDefaultSecurity(http);
-        http.getConfigurer(OAuth2AuthorizationServerConfigurer.class)
-//        	.authorizationService(customOAuth2AuthorizationService)
+
+  @Bean("authServerFilterChain")
+  @Order(1)
+public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity http) throws Exception {
+    OAuth2AuthorizationServerConfigurer authorizationServerConfigurer =
+            new OAuth2AuthorizationServerConfigurer();
+    authorizationServerConfigurer
             .tokenRevocationEndpoint(Customizer.withDefaults())
-            .oidc(Customizer.withDefaults());
-        http.oauth2ResourceServer(oauth2 -> 
-            oauth2.jwt(Customizer.withDefaults())
-        );
-        http.formLogin(Customizer.withDefaults());
-        return http.build();
-    }
-
-    @Bean
-    @Order(2)
-    public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
-        http.authorizeHttpRequests(authorize -> authorize
+            .oidc(Customizer.withDefaults());                
+    http
+        .securityMatcher(authorizationServerConfigurer.getEndpointsMatcher())
+        .authorizeHttpRequests(authorize -> authorize
+        		.requestMatchers("/oauth2/logout-rp", "/connect/logout").permitAll()
         		.anyRequest().authenticated())
-        .oauth2ResourceServer(oauth2 -> oauth2
-                .jwt(Customizer.withDefaults()) // bật xác thực JWT
-            )
-        .logout(logout -> logout
-                .logoutUrl("/oauth2/logout-rp")  // Đường dẫn logout bạn muốn
-                .logoutSuccessUrl("/login?logout") // Trang redirect sau logout
-                .invalidateHttpSession(true)
-                .clearAuthentication(true)
-                .deleteCookies("JSESSIONID")
-            )
-                .formLogin(Customizer.withDefaults());
-        return http.build();
-    }
+        .with(authorizationServerConfigurer, Customizer.withDefaults())
+        .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+        .formLogin(Customizer.withDefaults());
 
-//    @Bean
-//    public UserDetailsService userDetailsService() {
-//        PasswordEncoder passwordEncoder = PasswordEncoderFactories.createDelegatingPasswordEncoder();
-//        UserDetails user = User.builder()
-//                .username("admin")
-//                .password(passwordEncoder.encode("123456"))
-//                .roles("USER")
-//                .build();
-//        return new InMemoryUserDetailsManager(user);
-//    }
+    return http.build();
+}
+
+
+@Bean
+@Order(2)
+public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
+    http.authorizeHttpRequests(authorize -> authorize
+    		.requestMatchers(HttpMethod.GET,"/oauth2/logout-rp").permitAll()
+    		.anyRequest().authenticated())
+    .oauth2ResourceServer(oauth2 -> oauth2
+            .jwt(Customizer.withDefaults()) // bật xác thực JWT
+        )
+//    .logout(logout -> logout
+//    		.logoutUrl("/connect/logout") 
+//    		   .addLogoutHandler((request, response, authentication) -> {
+//    		        if (request.getSession(false) != null) {
+//    		        	System.out.println("sesion logout : " + request.getSession().getId());
+//    		            sessionRepository.deleteById(request.getSession().getId());
+//    		        }
+//    		    })
+//           
+//            .logoutSuccessUrl("/login?logout") // Trang redirect sau logout
+//            .invalidateHttpSession(true)
+//            .clearAuthentication(true)
+//            .deleteCookies("JSESSIONID")
+//        )
+            .formLogin(Customizer.withDefaults());
+    return http.build();
+}
+    
+ 
     
     @Bean
     public UserDetailsService userDetailsService(DataSource dataSource) {
@@ -142,7 +155,6 @@ public class AuthorizationServerConfig {
         return new JdbcOAuth2AuthorizationService(jdbcTemplate, clientRepository);
     }
     
-
 
 
 }
