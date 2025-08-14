@@ -65,6 +65,8 @@ public class LogoutController {
         String principalName = idToken.getSubject();
         if (principalName == null || principalName.isEmpty()) {
             return ResponseEntity.badRequest().build();
+            
+            
         }
 
         // 2) Lấy access_token từ header hoặc param để revoke authorization
@@ -108,12 +110,10 @@ public class LogoutController {
             var accessToken = authorization.getAccessToken().getToken();
             blacklistIfNeeded(accessToken.getTokenValue(), accessToken.getExpiresAt());
         }
-
         if (authorization.getRefreshToken() != null && authorization.getRefreshToken().getToken() != null) {
             var refreshToken = authorization.getRefreshToken().getToken();
             blacklistIfNeeded(refreshToken.getTokenValue(), refreshToken.getExpiresAt());
         }
-
         var idToken = authorization.getToken(org.springframework.security.oauth2.core.oidc.OidcIdToken.class);
         if (idToken != null && idToken.getToken() != null) {
             blacklistIfNeeded(idToken.getToken().getTokenValue(), idToken.getToken().getExpiresAt());
