@@ -32,7 +32,6 @@ public class LogoutController {
 
     private final OAuth2AuthorizationService authorizationService;
     private final JwtDecoder jwtDecoder;
-    
     private final FindByIndexNameSessionRepository<? extends Session> sessionRepository;
     private final RedisTokenBlacklistService blacklistService;
 
