@@ -102,6 +102,7 @@ public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity h
 public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
     http.authorizeHttpRequests(authorize -> authorize
     		.requestMatchers(HttpMethod.GET,"/oauth2/logout-rp").permitAll()
+    		.requestMatchers("/actuator/**").permitAll()
     		.anyRequest().authenticated())
     .oauth2ResourceServer(oauth2 -> oauth2
             .jwt(Customizer.withDefaults()) // bật xác thực JWT
