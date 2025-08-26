@@ -101,7 +101,7 @@ public SecurityFilterChain authorizationServerSecurityFilterChain(HttpSecurity h
 @Order(2)
 public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
     http.authorizeHttpRequests(authorize -> authorize
-    		.requestMatchers(HttpMethod.GET,"/oauth2/logout-rp").permitAll()
+    		.requestMatchers(HttpMethod.GET,"/oauth2/logout-rp","/poll/**").permitAll()
     		.requestMatchers("/actuator/**").permitAll()
     		.anyRequest().authenticated())
     .oauth2ResourceServer(oauth2 -> oauth2
