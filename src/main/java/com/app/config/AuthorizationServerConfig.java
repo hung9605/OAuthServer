@@ -2,6 +2,7 @@ package com.app.config;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import javax.sql.DataSource;
 
@@ -14,6 +15,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +25,7 @@ import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
 import org.springframework.security.oauth2.core.oidc.OidcScopes;
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType;
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient;
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository;
@@ -29,6 +33,8 @@ import org.springframework.security.oauth2.server.authorization.config.annotatio
 import org.springframework.security.oauth2.server.authorization.config.annotation.web.configurers.OAuth2AuthorizationServerConfigurer;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
 import org.springframework.security.oauth2.server.authorization.settings.TokenSettings;
+import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext;
+import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.provisioning.JdbcUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.session.data.redis.RedisIndexedSessionRepository;
@@ -65,7 +71,6 @@ public class AuthorizationServerConfig {
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .redirectUri(redirectUri)
                 .postLogoutRedirectUri("http://localhost:4200")
-                //.redirectUri("https://oauth.pstmn.io/v1/callback")
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .scope(OidcScopes.EMAIL)
@@ -105,22 +110,7 @@ public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exceptio
     		.requestMatchers("/actuator/**").permitAll()
     		.anyRequest().authenticated())
     .oauth2ResourceServer(oauth2 -> oauth2
-            .jwt(Customizer.withDefaults()) // bật xác thực JWT
-        )
-//    .logout(logout -> logout
-//    		.logoutUrl("/connect/logout") 
-//    		   .addLogoutHandler((request, response, authentication) -> {
-//    		        if (request.getSession(false) != null) {
-//    		        	System.out.println("sesion logout : " + request.getSession().getId());
-//    		            sessionRepository.deleteById(request.getSession().getId());
-//    		        }
-//    		    })
-//           
-//            .logoutSuccessUrl("/login?logout") // Trang redirect sau logout
-//            .invalidateHttpSession(true)
-//            .clearAuthentication(true)
-//            .deleteCookies("JSESSIONID")
-//        )
+            .jwt(Customizer.withDefaults()) )
             .formLogin(Customizer.withDefaults());
     return http.build();
 }
@@ -154,6 +144,21 @@ public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exceptio
     @Bean
     public OAuth2AuthorizationService authorizationService(JdbcTemplate jdbcTemplate, RegisteredClientRepository clientRepository) {
         return new JdbcOAuth2AuthorizationService(jdbcTemplate, clientRepository);
+    }
+    
+    @Bean
+    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
+        return (context) -> {
+            if (OAuth2TokenType.ACCESS_TOKEN.equals(context.getTokenType())) {
+                Authentication principal = context.getPrincipal();
+                if (principal != null && principal.getAuthorities() != null) {
+                    context.getClaims().claim("roles",
+                            principal.getAuthorities().stream()
+                                    .map(GrantedAuthority::getAuthority)
+                                    .collect(Collectors.toList()));
+                }
+            }
+        };
     }
     
 
